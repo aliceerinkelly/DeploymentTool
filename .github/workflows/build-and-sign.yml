@@ -3,7 +3,7 @@ name: Build and Sign Deployment Tool
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Allows you to manually trigger the build from GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
 
     - name: Compile Standalone C# File
       run: |
-        & 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe' /target:winexe /out:bin\Release\DeploymentTool.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll code
+        & 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe' /target:winexe /out:bin\Release\DeploymentTool.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll "${{ github.workspace }}\code"
 
     - name: Secure Cloud Signing via SignPath
       uses: signpath/github-action-submit-signing-request@v1
