@@ -15,7 +15,6 @@ jobs:
 
     - name: Compile Standalone C# File
       run: |
-        # This compiles your raw C# code directly into a Windows GUI executable
         csc.exe /target:winexe /out:bin\Release\DeploymentTool.exe code
 
     - name: Secure Cloud Signing via SignPath
