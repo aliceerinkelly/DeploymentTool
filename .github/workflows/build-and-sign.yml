@@ -1,0 +1,40 @@
+name: Build and Sign Deployment Tool
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # Allows you to manually trigger the build from GitHub
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET Core / MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore NuGet Packages
+      run: nuget restore
+
+    - name: Compile C# Project
+      run: msbuild /p:Configuration=Release /p:Platform="Any CPU"
+
+    - name: Secure Cloud Signing via SignPath
+      uses: signpath/github-action-submit@v1
+      with:
+        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+        organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+        project-slug: 'DeploymentTool' # Replace with your exact SignPath project name once approved
+        signing-policy-slug: 'ReleaseSigning'
+        artifact-configuration-slug: 'Artifacts'
+        input-artifact-path: 'bin/Release/'
+        output-artifact-path: 'bin/Signed/'
+
+    - name: Upload Signed Binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-Deployment-Tool
+        path: bin/Signed/
