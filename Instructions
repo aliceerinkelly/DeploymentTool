@@ -41,7 +41,5 @@ Follow these steps to create your own customized Windows 11 installation media:
     * **Option A (Standard WIM):** Place your modified `install.wim` back into the ISO's `/sources/` directory, then use a tool like **Rufus** to burn the ISO to a bootable USB thumb drive.
     * **Option B (Compressed ESD):** Use the tool to compress the heavy `.wim` into a significantly smaller `install.esd` file. Delete the original `install.wim` from the ISO's `/sources/` folder, drop your new `install.esd` in its place, and burn it to a DVD or flash drive using Rufus.
 
-💡 **Pro-Tip (The Autounattend Button):**  
-Clicking the `autounattended.xml` button will temporarily disable Windows AV and Firewall restrictions during deployment. This automates the setup sequence, reducing the installation process down to just **two quick questions**: *What drive?* and *What network?* 
 
 Ta-da! You are completely finished. Enjoy your custom, streamlined Windows installation!
