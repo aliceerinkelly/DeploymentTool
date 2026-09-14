@@ -25,6 +25,7 @@ jobs:
             <OutputType>WinExe</OutputType>
             <TargetFramework>net48</TargetFramework>
             <UseWindowsForms>true</UseWindowsForms>
+            <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
             <AssemblyName>DeploymentTool</AssemblyName>
             <OutputPath>bin\Release\</OutputPath>
           </PropertyGroup>
