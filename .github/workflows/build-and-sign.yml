@@ -39,7 +39,10 @@ jobs:
         </Project>
         "@
         
-        # Compile using MSBuild instead of calling the raw compiler binary directly
+        # Restore packages and initialize workspace dependencies
+        dotnet restore TempProject.csproj
+        
+        # Compile using MSBuild
         msbuild TempProject.csproj /p:Configuration=Release
 
     - name: Secure Cloud Signing via SignPath
