@@ -13,12 +13,34 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    - name: Setup MSBuild and Compiler Paths
+    - name: Setup MSBuild Paths
       uses: microsoft/setup-msbuild@v2
 
-    - name: Compile Standalone C# File
+    - name: Compile Standalone C# File via MSBuild
       run: |
-        csc.exe /target:winexe /out:bin\Release\DeploymentTool.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll "${{ github.workspace }}\code"
+        # Generate a temporary project file on the fly to handle Windows Forms dependencies natively
+        Set-Content -Path "TempProject.csproj" -Value @"
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <OutputType>WinExe</OutputType>
+            <TargetFramework>net48</TargetFramework>
+            <UseWindowsForms>true</UseWindowsForms>
+            <AssemblyName>DeploymentTool</AssemblyName>
+            <OutputPath>bin\Release\</OutputPath>
+          </PropertyGroup>
+          <ItemGroup>
+            <Compile Include="code" />
+          </ItemGroup>
+          <ItemGroup>
+            <Reference Include="System" />
+            <Reference Include="System.Drawing" />
+            <Reference Include="System.Windows.Forms" />
+          </ItemGroup>
+        </Project>
+        "@
+        
+        # Compile using MSBuild instead of calling the raw compiler binary directly
+        msbuild TempProject.csproj /p:Configuration=Release
 
     - name: Secure Cloud Signing via SignPath
       uses: signpath/github-action-submit-signing-request@v1
