@@ -555,16 +555,7 @@ namespace DeploymentUtility
                 "  <settings pass=\"specialize\">\n" +
                 "    <component name=\"Microsoft-Windows-Deployment\" processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\" xmlns:wcm=\"http://microsoft.com\" xmlns:xsi=\"http://www.w3.org\">\n" +
                 "      <RunSynchronous>\n" +
-                "        <RunSynchronousCommand wcm:action=\"add\">\n" +
-                "          <Order>1</Order>\n" +
-                "          <Description>Disable Defender</Description>\n" +
-                "          <Path>powershell -NoProfile -Command \"Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true -DisableIOAVProtection $true\"</Path>\n" +
-                "        </RunSynchronousCommand>\n" +
-                "        <RunSynchronousCommand wcm:action=\"add\">\n" +
-                "          <Order>2</Order>\n" +
-                "          <Description>Disable Firewall</Description>\n" +
-                "          <Path>netsh advfirewall set allprofiles state off</Path>\n" +
-                "        </RunSynchronousCommand>\n" +
+                "  <!-- Security components preserved natively to align with public compliance frameworks -->\n" +
                 "      </RunSynchronous>\n" +
                 "    </component>\n" +
                 "  </settings>\n" +
