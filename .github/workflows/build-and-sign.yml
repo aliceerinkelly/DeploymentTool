@@ -46,6 +46,13 @@ jobs:
         # Compile using MSBuild
         msbuild TempProject.csproj /p:Configuration=Release
 
+    - name: Package Unsigned Executable for Signing
+      id: upload-unsigned
+      uses: actions/upload-artifact@v4
+      with:
+        name: unsigned-binary
+        path: bin/Release/net48/
+
     - name: Secure Cloud Signing via SignPath
       uses: signpath/github-action-submit-signing-request@v1
       with:
@@ -53,12 +60,5 @@ jobs:
         organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
         project-slug: 'DeploymentTool'
         signing-policy-slug: 'ReleaseSigning'
-        artifact-configuration-slug: 'Artifacts'
-        input-artifact-path: 'bin/Release/'
-        output-artifact-path: 'bin/Signed/'
-
-    - name: Upload Signed Binaries
-      uses: actions/upload-artifact@v4
-      with:
-        name: Signed-Deployment-Tool
-        path: bin/Signed/
+        github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+        output-artifact-directory: bin/Signed/
