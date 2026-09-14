@@ -13,22 +13,17 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    - name: Setup .NET Core / MSBuild
-      uses: microsoft/setup-msbuild@v2
-
-    - name: Restore NuGet Packages
-      run: nuget restore
-
-    - name: Compile C# Project
-      run: msbuild /p:Configuration=Release /p:Platform="Any CPU"
+    - name: Compile Standalone C# File
+      run: |
+        # This compiles your raw C# code directly into a Windows GUI executable
+        csc.exe /target:winexe /out:bin\Release\DeploymentTool.exe code
 
     - name: Secure Cloud Signing via SignPath
       uses: signpath/github-action-submit-signing-request@v1
-
       with:
         api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
         organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-        project-slug: 'DeploymentTool' # Replace with your exact SignPath project name once approved
+        project-slug: 'DeploymentTool'
         signing-policy-slug: 'ReleaseSigning'
         artifact-configuration-slug: 'Artifacts'
         input-artifact-path: 'bin/Release/'
