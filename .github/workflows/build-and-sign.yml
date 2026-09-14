@@ -18,7 +18,6 @@ jobs:
 
     - name: Compile Standalone C# File
       run: |
-        # This locates the correct C# compiler and attaches the Windows Forms assemblies your tool requires
         & 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe' /target:winexe /out:bin\Release\DeploymentTool.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll code
 
     - name: Secure Cloud Signing via SignPath
