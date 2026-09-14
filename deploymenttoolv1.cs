@@ -1,0 +1,819 @@
+// ============================================================================
+// ToolGui.cs - Windows Deployment & Driver Management Tool
+// Copyright (c) 2026 Alice Kelly. All rights reserved.
+// ============================================================================
+
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.IO.Compression;
+using System.Reflection;
+using System.Security.Principal;
+using System.Windows.Forms;
+
+// Assembly metadata (Visible in Windows File Explorer -> Properties -> Details)
+[assembly: AssemblyTitle("Windows Deployment & Driver Management Tool")]
+[assembly: AssemblyDescription("Windows DISM Image and Driver Servicing Utility")]
+[assembly: AssemblyCompany("Alice Kelly")]
+[assembly: AssemblyProduct("DeploymentUtility")]
+[assembly: AssemblyCopyright("Copyright © 2026 Alice Kelly. All rights reserved.")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+
+namespace DeploymentUtility
+{
+    public class MainForm : Form
+    {
+        private TextBox txtLog;
+        private string workDir;
+        private string driverBackupDir;
+        private string mountDir;
+        private string tempWim;
+        private string outDir;
+
+        public MainForm()
+        {
+            outDir = @"C:\drivers_backup";
+            workDir = AppDomain.CurrentDomain.BaseDirectory;
+            driverBackupDir = Path.Combine(workDir, "ExportedDrivers");
+            mountDir = Path.Combine(workDir, "WimMount");
+            tempWim = Path.Combine(workDir, "temp_processing.wim");
+
+            // Substantially wider (65%) and taller (85%) relative to screen
+            Rectangle screen = Screen.PrimaryScreen.WorkingArea;
+            int formWidth = (int)(screen.Width * 0.65);
+            int formHeight = (int)(screen.Height * 0.85);
+
+            this.Text = "Windows Deployment & Driver Management Tool - © Alice Kelly";
+            this.Size = new Size(formWidth, formHeight);
+            this.MinimumSize = new Size(720, 600);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.BackColor = Color.FromArgb(32, 32, 32);
+            this.ForeColor = Color.White;
+
+            Label lblTitle = new Label();
+            lblTitle.Text = "Windows Deployment Hub";
+            lblTitle.Font = new Font("Segoe UI", 14, FontStyle.Bold);
+            lblTitle.Location = new Point(25, 14);
+            lblTitle.AutoSize = true;
+
+            Label lblCopyright = new Label();
+            lblCopyright.Text = "© 2026 Alice Kelly. All rights reserved.";
+            lblCopyright.Font = new Font("Segoe UI", 9, FontStyle.Italic);
+            lblCopyright.ForeColor = Color.DarkGray;
+            lblCopyright.Location = new Point(formWidth - 320, 18);
+            lblCopyright.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            lblCopyright.AutoSize = true;
+
+            // Row 1: Drivers
+            Button btnBackupDrivers = CreateButton("Backup Drivers", 25, 52, 220, 36, OnBackupDrivers);
+            Button btnRestoreDefault = CreateButton("Restore (Default)", 260, 52, 220, 36, OnRestoreDriversDefault);
+            Button btnRestoreBrowse = CreateButton("Restore (Browse...)", 495, 52, 230, 36, OnRestoreDriversBrowse);
+
+            // Row 2: Image Servicing
+            Button btnScanImages = CreateButton("Scan & Slipstream Image", 25, 96, 345, 36, OnScanAndSlipstream);
+            Button btnBrowseImage = CreateButton("Browse Image & Slipstream", 380, 96, 345, 36, OnBrowseAndSlipstream);
+
+            // Row 3: WIM Inspection & Deletion
+            Button btnListWim = CreateButton("List WIM Editions / Indexes", 25, 140, 345, 36, OnListWimInfo);
+            Button btnDeleteIndex = CreateButton("Delete Unwanted WIM Index", 380, 140, 345, 36, OnDeleteWimIndex);
+
+            // Row 4: Compression
+            Button btnCompressFolder = CreateButton("Compress Folder (Zip/WinRAR/WinZip)", 25, 184, 345, 36, OnCompressFolderPrompt);
+            Button btnWimToEsd = CreateButton("Convert WIM to Solid ESD", 380, 184, 345, 36, OnConvertWimToEsd);
+
+            // Row 5: Deployment & Environment
+            Button btnGenerateXml = CreateButton("Generate autounattend.xml", 25, 228, 345, 36, OnGenerateXml);
+            Button btnCleanup = CreateButton("Force DISM Cleanup / Reset", 380, 228, 345, 36, OnCleanupEnvironment);
+
+            txtLog = new TextBox();
+            txtLog.Location = new Point(25, 280);
+            txtLog.Size = new Size(formWidth - 65, formHeight - 335);
+            txtLog.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            txtLog.Multiline = true;
+            txtLog.ReadOnly = true;
+            txtLog.ScrollBars = ScrollBars.Vertical;
+            txtLog.BackColor = Color.FromArgb(18, 18, 18);
+            txtLog.ForeColor = Color.FromArgb(0, 255, 128);
+            txtLog.Font = new Font("Consolas", 11, FontStyle.Bold);
+
+            this.Controls.Add(lblTitle);
+            this.Controls.Add(lblCopyright);
+            this.Controls.Add(btnBackupDrivers);
+            this.Controls.Add(btnRestoreDefault);
+            this.Controls.Add(btnRestoreBrowse);
+            this.Controls.Add(btnScanImages);
+            this.Controls.Add(btnBrowseImage);
+            this.Controls.Add(btnListWim);
+            this.Controls.Add(btnDeleteIndex);
+            this.Controls.Add(btnCompressFolder);
+            this.Controls.Add(btnWimToEsd);
+            this.Controls.Add(btnGenerateXml);
+            this.Controls.Add(btnCleanup);
+            this.Controls.Add(txtLog);
+
+            Log("Ready. Running as Administrator.");
+            Log("Windows Deployment & Driver Management Tool © 2026 Alice Kelly.");
+        }
+
+        private Button CreateButton(string text, int x, int y, int width, int height, EventHandler handler)
+        {
+            Button btn = new Button();
+            btn.Text = text;
+            btn.UseMnemonic = false;
+            btn.Location = new Point(x, y);
+            btn.Size = new Size(width, height);
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.BackColor = Color.FromArgb(50, 50, 50);
+            btn.ForeColor = Color.White;
+            btn.Font = new Font("Segoe UI", 10, FontStyle.Regular);
+            btn.Click += handler;
+            return btn;
+        }
+
+        private void Log(string message)
+        {
+            txtLog.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message + Environment.NewLine);
+        }
+
+        // --- WIM INSPECTION & DELETION ---
+        private void OnListWimInfo(object sender, EventArgs e)
+        {
+            string img = PickImageFile();
+            if (string.IsNullOrEmpty(img)) return;
+
+            Log("Querying editions inside: " + Path.GetFileName(img));
+            RunCommand("dism.exe", "/Get-WimInfo /WimFile:\"" + img + "\"");
+        }
+
+        private void OnDeleteWimIndex(object sender, EventArgs e)
+        {
+            string img = PickImageFile();
+            if (string.IsNullOrEmpty(img)) return;
+
+            Log("Displaying available indexes for: " + Path.GetFileName(img));
+            RunCommand("dism.exe", "/Get-WimInfo /WimFile:\"" + img + "\"");
+
+            string indexInput = ShowInputDialog("Delete Image Index", "Enter the Index Number you want to REMOVE from the WIM:", "");
+            if (string.IsNullOrEmpty(indexInput))
+            {
+                Log("Index removal cancelled.");
+                return;
+            }
+
+            DialogResult confirm = MessageBox.Show(
+                "Are you sure you want to permanently delete Index " + indexInput + " from:\n" + img + "?",
+                "Confirm Deletion",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning
+            );
+
+            if (confirm != DialogResult.Yes)
+            {
+                Log("Index deletion aborted by user.");
+                return;
+            }
+
+            Log("Deleting Index " + indexInput + " from image...");
+            int res = RunCommand("dism.exe", "/Delete-Image /ImageFile:\"" + img + "\" /Index:" + indexInput + " /CheckIntegrity");
+            if (res == 0)
+            {
+                Log("SUCCESS: Index " + indexInput + " removed. Available editions updated:");
+                RunCommand("dism.exe", "/Get-WimInfo /WimFile:\"" + img + "\"");
+            }
+            else
+            {
+                Log("ERROR: Failed to delete index " + indexInput);
+            }
+        }
+
+        private string PickImageFile()
+        {
+            string defaultWim = Path.Combine(workDir, "install.wim");
+            if (File.Exists(defaultWim)) return defaultWim;
+
+            using (OpenFileDialog ofd = new OpenFileDialog())
+            {
+                ofd.Filter = "Windows Images (*.wim;*.esd)|*.wim;*.esd";
+                ofd.Title = "Select Image File";
+                if (ofd.ShowDialog() == DialogResult.OK) return ofd.FileName;
+            }
+            return null;
+        }
+
+        // --- DRIVER CONTROLS ---
+        private void OnBackupDrivers(object sender, EventArgs e)
+        {
+            Log("Exporting current 3rd-party drivers to: " + driverBackupDir);
+            if (!Directory.Exists(driverBackupDir)) Directory.CreateDirectory(driverBackupDir);
+            RunCommand("dism.exe", "/online /export-driver /destination:\"" + driverBackupDir + "\"");
+        }
+
+        private void OnRestoreDriversDefault(object sender, EventArgs e)
+        {
+            InstallDriversFromFolder(driverBackupDir);
+        }
+
+        private void OnRestoreDriversBrowse(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select driver folder";
+                if (fbd.ShowDialog() == DialogResult.OK)
+                {
+                    InstallDriversFromFolder(fbd.SelectedPath);
+                }
+            }
+        }
+
+        private void InstallDriversFromFolder(string folder)
+        {
+            if (!Directory.Exists(folder))
+            {
+                Log("ERROR: Folder does not exist: " + folder);
+                return;
+            }
+            Log("Installing all .inf drivers from: " + folder);
+            RunCommand("pnputil.exe", "/add-driver \"" + folder + "\\*.inf\" /subdirs /install");
+        }
+
+        // --- SLIPSTREAM CONTROLS ---
+        private void OnScanAndSlipstream(object sender, EventArgs e)
+        {
+            string[] found = Directory.GetFiles(workDir, "*.*", SearchOption.AllDirectories);
+            string targetImage = null;
+            foreach (string file in found)
+            {
+                string name = Path.GetFileName(file).ToLower();
+                if (name == "install.wim" || name == "install.esd")
+                {
+                    targetImage = file;
+                    break;
+                }
+            }
+
+            if (targetImage == null)
+            {
+                Log("INFO: No install.wim or install.esd detected in current folder.");
+                return;
+            }
+
+            ProcessSlipstream(targetImage);
+        }
+
+        private void OnBrowseAndSlipstream(object sender, EventArgs e)
+        {
+            using (OpenFileDialog ofd = new OpenFileDialog())
+            {
+                ofd.Filter = "Windows Images (*.wim;*.esd)|*.wim;*.esd";
+                ofd.Title = "Select install.wim or install.esd";
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    ProcessSlipstream(ofd.FileName);
+                }
+            }
+        }
+
+        private void ProcessSlipstream(string imgPath)
+        {
+            Log("Selected Image: " + imgPath);
+            string ext = Path.GetExtension(imgPath).ToLower();
+
+            RunCommand("dism.exe", "/Get-WimInfo /WimFile:\"" + imgPath + "\"");
+
+            string indexInput = ShowInputDialog("Image Index", "Enter Operating System Index to patch:", "1");
+            if (string.IsNullOrEmpty(indexInput)) return;
+
+            string targetWim = imgPath;
+            if (ext == ".esd")
+            {
+                Log("Exporting ESD index to temporary WIM...");
+                if (File.Exists(tempWim)) File.Delete(tempWim);
+                int exitCode = RunCommand("dism.exe", "/Export-Image /SourceImageFile:\"" + imgPath + "\" /SourceIndex:" + indexInput + " /DestinationImageFile:\"" + tempWim + "\" /Compress:fast");
+                if (exitCode != 0) { ErrorCleanup(); return; }
+                targetWim = tempWim;
+                indexInput = "1";
+            }
+
+            if (Directory.Exists(mountDir)) Directory.Delete(mountDir, true);
+            Directory.CreateDirectory(mountDir);
+
+            Log("Mounting image...");
+            if (RunCommand("dism.exe", "/Mount-Image /ImageFile:\"" + targetWim + "\" /Index:" + indexInput + " /MountDir:\"" + mountDir + "\"") != 0)
+            {
+                ErrorCleanup();
+                return;
+            }
+
+            Log("Slipstreaming drivers from: " + driverBackupDir);
+            if (RunCommand("dism.exe", "/Image:\"" + mountDir + "\" /Add-Driver /Driver:\"" + driverBackupDir + "\" /Recurse") != 0)
+            {
+                ErrorCleanup();
+                return;
+            }
+
+            Log("Unmounting and committing changes...");
+            if (RunCommand("dism.exe", "/Unmount-Image /MountDir:\"" + mountDir + "\" /Commit") != 0)
+            {
+                ErrorCleanup();
+                return;
+            }
+            if (Directory.Exists(mountDir)) Directory.Delete(mountDir, true);
+
+            if (ext == ".esd")
+            {
+                Log("Re-compressing to ESD format...");
+                string backupEsd = imgPath + ".bak";
+                if (File.Exists(backupEsd)) File.Delete(backupEsd);
+                File.Move(imgPath, backupEsd);
+
+                RunCommand("dism.exe", "/Export-Image /SourceImageFile:\"" + tempWim + "\" /SourceIndex:1 /DestinationImageFile:\"" + imgPath + "\" /Compress:recovery");
+                if (File.Exists(tempWim)) File.Delete(tempWim);
+            }
+
+            Log("SUCCESS: Driver injection complete!");
+        }
+
+        // --- COMPRESSION SUITE ---
+        private void OnCompressFolderPrompt(object sender, EventArgs e)
+        {
+            string srcFolder = "";
+            using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Select Folder to Compress";
+                if (Directory.Exists(@"C:\drivers")) fbd.SelectedPath = @"C:\drivers";
+                else if (Directory.Exists(driverBackupDir)) fbd.SelectedPath = driverBackupDir;
+
+                if (fbd.ShowDialog() != DialogResult.OK) return;
+                srcFolder = fbd.SelectedPath;
+            }
+
+            Form choiceForm = new Form();
+            choiceForm.Text = "Choose Compression Engine";
+            choiceForm.Size = new Size(400, 220);
+            choiceForm.StartPosition = FormStartPosition.CenterParent;
+            choiceForm.BackColor = Color.FromArgb(40, 40, 40);
+            choiceForm.ForeColor = Color.White;
+            choiceForm.FormBorderStyle = FormBorderStyle.FixedDialog;
+            choiceForm.MaximizeBox = false;
+            choiceForm.MinimizeBox = false;
+
+            Button btnZip = new Button();
+            btnZip.Text = "Compressed (zipped) Folder [Windows Built-in]";
+            btnZip.Left = 25; btnZip.Top = 15; btnZip.Width = 335; btnZip.Height = 36;
+            btnZip.FlatStyle = FlatStyle.Flat;
+            btnZip.BackColor = Color.FromArgb(55, 55, 55);
+
+            Button btnRar = new Button();
+            btnRar.Text = "WinRAR Archive (.rar)";
+            btnRar.Left = 25; btnRar.Top = 62; btnRar.Width = 335; btnRar.Height = 36;
+            btnRar.FlatStyle = FlatStyle.Flat;
+            btnRar.BackColor = Color.FromArgb(55, 55, 55);
+
+            Button btnWz = new Button();
+            btnWz.Text = "WinZip Archive (.zip)";
+            btnWz.Left = 25; btnWz.Top = 110; btnWz.Width = 335; btnWz.Height = 36;
+            btnWz.FlatStyle = FlatStyle.Flat;
+            btnWz.BackColor = Color.FromArgb(55, 55, 55);
+
+            int choice = 0;
+            btnZip.Click += delegate { choice = 1; choiceForm.Close(); };
+            btnRar.Click += delegate { choice = 2; choiceForm.Close(); };
+            btnWz.Click  += delegate { choice = 3; choiceForm.Close(); };
+
+            choiceForm.Controls.Add(btnZip);
+            choiceForm.Controls.Add(btnRar);
+            choiceForm.Controls.Add(btnWz);
+            choiceForm.ShowDialog();
+
+            if (choice == 0) return;
+
+            if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+
+            if (choice == 1)
+            {
+                string targetZip = Path.Combine(outDir, "Compressed_Drivers.zip");
+                try
+                {
+                    if (File.Exists(targetZip)) File.Delete(targetZip);
+                    Log("Compressing folder with Windows native engine...");
+                    ZipFile.CreateFromDirectory(srcFolder, targetZip, CompressionLevel.Optimal, false);
+
+                    if (File.Exists(targetZip)) Log("SUCCESS: Created " + targetZip);
+                    else Log("ERROR: Compression finished but archive was not found.");
+                }
+                catch (Exception ex)
+                {
+                    Log("ERROR: " + ex.Message);
+                }
+            }
+            else if (choice == 2)
+            {
+                string winRarPath = FindToolPath(new string[] {
+                    @"C:\Program Files\WinRAR\Rar.exe",
+                    @"C:\Program Files (x86)\WinRAR\Rar.exe",
+                    @"C:\Program Files\WinRAR\WinRAR.exe"
+                });
+
+                if (string.IsNullOrEmpty(winRarPath))
+                {
+                    Log("ERROR: WinRAR installation not found in Program Files.");
+                    return;
+                }
+
+                string targetRar = Path.Combine(outDir, "Compressed_Drivers.rar");
+                if (File.Exists(targetRar)) File.Delete(targetRar);
+                Log("Executing WinRAR...");
+                RunCommand(winRarPath, "a -r -ep1 -m5 \"" + targetRar + "\" \"" + srcFolder + "\\*\"");
+                if (File.Exists(targetRar)) Log("SUCCESS: Created " + targetRar);
+            }
+            else if (choice == 3)
+            {
+                string winZipPath = FindToolPath(new string[] {
+                    @"C:\Program Files\WinZip\wzzip.exe",
+                    @"C:\Program Files (x86)\WinZip\wzzip.exe",
+                    @"C:\Program Files\WinZip\winzip64.exe",
+                    @"C:\Program Files\WinZip\winzip32.exe"
+                });
+
+                if (string.IsNullOrEmpty(winZipPath))
+                {
+                    Log("ERROR: WinZip installation not found in Program Files.");
+                    return;
+                }
+
+                string targetZip = Path.Combine(outDir, "Compressed_Drivers.zip");
+                if (File.Exists(targetZip)) File.Delete(targetZip);
+                Log("Executing WinZip...");
+                RunCommand(winZipPath, "-a -r -p \"" + targetZip + "\" \"" + srcFolder + "\\*.*\"");
+                if (File.Exists(targetZip)) Log("SUCCESS: Created " + targetZip);
+            }
+        }
+
+        private void OnConvertWimToEsd(object sender, EventArgs e)
+        {
+            string srcWim = "";
+            using (OpenFileDialog ofd = new OpenFileDialog())
+            {
+                ofd.Filter = "WIM Image (*.wim)|*.wim";
+                ofd.Title = "Select install.wim to convert to ESD";
+                if (ofd.ShowDialog() != DialogResult.OK) return;
+                srcWim = ofd.FileName;
+            }
+
+            if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+            string destEsd = Path.Combine(outDir, "install.esd");
+            if (File.Exists(destEsd)) File.Delete(destEsd);
+
+            Log("Analyzing Source WIM: " + srcWim);
+            Log("Target Destination: " + destEsd);
+
+            int imgCount = GetWimIndexCount(srcWim);
+            if (imgCount == 0)
+            {
+                Log("ERROR: No valid image indexes found inside selected WIM.");
+                return;
+            }
+
+            Log("Found " + imgCount + " image index(es). Starting export loop...");
+
+            for (int i = 1; i <= imgCount; i++)
+            {
+                Log("Compressing Index " + i + " of " + imgCount + "...");
+                int res = RunCommand("dism.exe", "/Export-Image /SourceImageFile:\"" + srcWim + "\" /SourceIndex:" + i + " /DestinationImageFile:\"" + destEsd + "\" /Compress:recovery /CheckIntegrity");
+                if (res != 0)
+                {
+                    Log("ERROR: Failed exporting index " + i + ". Aborted.");
+                    return;
+                }
+            }
+
+            if (File.Exists(destEsd))
+            {
+                Log("SUCCESS: ESD archive created at: " + destEsd);
+            }
+        }
+
+        private int GetWimIndexCount(string wimPath)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo("dism.exe", "/Get-WimInfo /WimFile:\"" + wimPath + "\"");
+                psi.RedirectStandardOutput = true;
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+
+                int count = 0;
+                using (Process p = Process.Start(psi))
+                {
+                    while (!p.StandardOutput.EndOfStream)
+                    {
+                        string line = p.StandardOutput.ReadLine();
+                        if (line != null && line.Contains("Index :")) count++;
+                    }
+                    p.WaitForExit();
+                }
+                return count;
+            }
+            catch { return 0; }
+        }
+
+        private string FindToolPath(string[] paths)
+        {
+            foreach (string p in paths)
+            {
+                if (File.Exists(p)) return p;
+            }
+            return null;
+        }
+
+        // --- UNATTENDED & CLEANUP ---
+        private void OnGenerateXml(object sender, EventArgs e)
+        {
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string xmlPath = Path.Combine(desktop, "autounattend.xml");
+
+            string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+                "<unattend xmlns=\"urn:schemas-microsoft-com:unattend\">\n" +
+                "  <settings pass=\"windowsPE\">\n" +
+                "    <component name=\"Microsoft-Windows-Setup\" processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\" xmlns:wcm=\"http://microsoft.com\" xmlns:xsi=\"http://www.w3.org\">\n" +
+                "      <UserData><AcceptEula>true</AcceptEula></UserData>\n" +
+                "      <RunSynchronous>\n" +
+                "        <RunSynchronousCommand wcm:action=\"add\">\n" +
+                "          <Order>1</Order>\n" +
+                "          <Description>Bypass TPM Requirements</Description>\n" +
+                "          <Path>cmd /c reg add HKLM\\SYSTEM\\Setup\\LabConfig /v BypassTPMCheck /t REG_DWORD /d 1 /f &amp;&amp; reg add HKLM\\SYSTEM\\Setup\\LabConfig /v BypassSecureBootCheck /t REG_DWORD /d 1 /f &amp;&amp; reg add HKLM\\SYSTEM\\Setup\\LabConfig /v BypassRAMCheck /t REG_DWORD /d 1 /f &amp;&amp; reg add HKLM\\SYSTEM\\Setup\\LabConfig /v BypassCPUCheck /t REG_DWORD /d 1 /f &amp;&amp; reg add HKLM\\SYSTEM\\Setup\\LabConfig /v BypassStorageCheck /t REG_DWORD /d 1 /f</Path>\n" +
+                "        </RunSynchronousCommand>\n" +
+                "      </RunSynchronous>\n" +
+                "    </component>\n" +
+                "    <component name=\"Microsoft-Windows-International-Core-WinPE\" processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\" xmlns:wcm=\"http://microsoft.com\" xmlns:xsi=\"http://www.w3.org\">\n" +
+                "      <SetupUILanguage><UILanguage>en-US</UILanguage></SetupUILanguage>\n" +
+                "      <InputLocale>en-US</InputLocale><SystemLocale>en-US</SystemLocale><UILanguage>en-US</UILanguage><UserLocale>en-US</UserLocale>\n" +
+                "    </component>\n" +
+                "  </settings>\n" +
+                "  <settings pass=\"specialize\">\n" +
+                "    <component name=\"Microsoft-Windows-Deployment\" processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\" xmlns:wcm=\"http://microsoft.com\" xmlns:xsi=\"http://www.w3.org\">\n" +
+                "      <RunSynchronous>\n" +
+                "        <RunSynchronousCommand wcm:action=\"add\">\n" +
+                "          <Order>1</Order>\n" +
+                "          <Description>Disable Defender</Description>\n" +
+                "          <Path>powershell -NoProfile -Command \"Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true -DisableIOAVProtection $true\"</Path>\n" +
+                "        </RunSynchronousCommand>\n" +
+                "        <RunSynchronousCommand wcm:action=\"add\">\n" +
+                "          <Order>2</Order>\n" +
+                "          <Description>Disable Firewall</Description>\n" +
+                "          <Path>netsh advfirewall set allprofiles state off</Path>\n" +
+                "        </RunSynchronousCommand>\n" +
+                "      </RunSynchronous>\n" +
+                "    </component>\n" +
+                "  </settings>\n" +
+                "  <settings pass=\"oobeSystem\">\n" +
+                "    <component name=\"Microsoft-Windows-Shell-Setup\" processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\" xmlns:wcm=\"http://microsoft.com\" xmlns:xsi=\"http://www.w3.org\">\n" +
+                "      <OOBE>\n" +
+                "        <HideEULAPage>true</HideEULAPage>\n" +
+                "        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>\n" +
+                "        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>\n" +
+                "        <HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>\n" +
+                "        <NetworkLocation>Home</NetworkLocation>\n" +
+                "        <ProtectYourPC>3</ProtectYourPC>\n" +
+                "      </OOBE>\n" +
+                "      <UserAccounts>\n" +
+                "        <LocalAccounts>\n" +
+                "          <LocalAccount wcm:action=\"add\">\n" +
+                "            <Password><Value></Value><PlainText>true</PlainText></Password>\n" +
+                "            <Description>Local Admin</Description><DisplayName>User</DisplayName><Group>Administrators</Group><Name>User</Name>\n" +
+                "          </LocalAccount>\n" +
+                "        </LocalAccounts>\n" +
+                "      </UserAccounts>\n" +
+                "      <AutoLogon>\n" +
+                "        <Password><Value></Value><PlainText>true</PlainText></Password>\n" +
+                "        <Enabled>true</Enabled><LogonCount>1</LogonCount><Username>User</Username>\n" +
+                "      </AutoLogon>\n" +
+                "    </component>\n" +
+                "  </settings>\n" +
+                "</unattend>";
+
+            try
+            {
+                File.WriteAllText(xmlPath, xml);
+                Log("SUCCESS: Created " + xmlPath);
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR: " + ex.Message);
+            }
+        }
+
+        private void OnCleanupEnvironment(object sender, EventArgs e)
+        {
+            Log("Executing DISM cleanup routines...");
+            RunCommand("dism.exe", "/Cleanup-Mountpoints");
+            RunCommand("dism.exe", "/Cleanup-Wim");
+            if (Directory.Exists(mountDir)) try { Directory.Delete(mountDir, true); } catch { }
+            if (File.Exists(tempWim)) try { File.Delete(tempWim); } catch { }
+            Log("Environment cleaned.");
+        }
+
+        private void ErrorCleanup()
+        {
+            Log("ERROR detected. Cleaning up workspace...");
+            RunCommand("dism.exe", "/Unmount-Image /MountDir:\"" + mountDir + "\" /Discard");
+            if (Directory.Exists(mountDir)) try { Directory.Delete(mountDir, true); } catch { }
+            if (File.Exists(tempWim)) try { File.Delete(tempWim); } catch { }
+        }
+
+        private int RunCommand(string file, string args)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo(file, args);
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+
+                using (Process p = Process.Start(psi))
+                {
+                    while (!p.StandardOutput.EndOfStream)
+                    {
+                        string line = p.StandardOutput.ReadLine();
+                        if (!string.IsNullOrWhiteSpace(line)) Log(line);
+                    }
+                    while (!p.StandardError.EndOfStream)
+                    {
+                        string line = p.StandardError.ReadLine();
+                        if (!string.IsNullOrWhiteSpace(line)) Log("[ERR] " + line);
+                    }
+                    p.WaitForExit();
+                    return p.ExitCode;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("EXEC ERROR: " + ex.Message);
+                return -1;
+            }
+        }
+
+        private string ShowInputDialog(string caption, string prompt, string defaultVal)
+        {
+            Form form = new Form();
+            form.Width = 380;
+            form.Height = 175;
+            form.FormBorderStyle = FormBorderStyle.FixedDialog;
+            form.Text = caption;
+            form.StartPosition = FormStartPosition.CenterParent;
+            form.BackColor = Color.FromArgb(40, 40, 40);
+            form.ForeColor = Color.White;
+
+            Label lbl = new Label();
+            lbl.Left = 20; lbl.Top = 15; lbl.Text = prompt; lbl.AutoSize = true;
+            lbl.Font = new Font("Segoe UI", 10f);
+
+            TextBox box = new TextBox();
+            box.Left = 20; box.Top = 45; box.Width = 320; box.Text = defaultVal;
+            box.Font = new Font("Segoe UI", 10.5f);
+
+            Button btnOk = new Button();
+            btnOk.Text = "OK"; btnOk.Left = 170; btnOk.Width = 80; btnOk.Top = 85; btnOk.Height = 32; btnOk.DialogResult = DialogResult.OK;
+
+            Button btnCancel = new Button();
+            btnCancel.Text = "Cancel"; btnCancel.Left = 260; btnCancel.Width = 80; btnCancel.Top = 85; btnCancel.Height = 32; btnCancel.DialogResult = DialogResult.Cancel;
+
+            form.Controls.Add(lbl);
+            form.Controls.Add(box);
+            form.Controls.Add(btnOk);
+            form.Controls.Add(btnCancel);
+            form.AcceptButton = btnOk;
+            form.CancelButton = btnCancel;
+
+            return form.ShowDialog() == DialogResult.OK ? box.Text : "";
+        }
+
+        // --- DISCLAIMER POPUP ---
+        private static bool ShowDisclaimerDialog()
+        {
+            using (Form form = new Form())
+            {
+                form.Text = "MIT License & Disclaimer - Alice Kelly";
+                form.Size = new Size(580, 410);
+                form.StartPosition = FormStartPosition.CenterScreen;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.MaximizeBox = false;
+                form.MinimizeBox = false;
+                form.BackColor = Color.FromArgb(32, 32, 32);
+                form.ForeColor = Color.White;
+
+                Label lblHeader = new Label();
+                lblHeader.Text = "Terms of Use & Disclaimer";
+                lblHeader.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+                lblHeader.Location = new Point(20, 15);
+                lblHeader.AutoSize = true;
+
+                TextBox txtDisclaimer = new TextBox();
+                txtDisclaimer.Multiline = true;
+                txtDisclaimer.ReadOnly = true;
+                txtDisclaimer.ScrollBars = ScrollBars.Vertical;
+                txtDisclaimer.Location = new Point(20, 45);
+                txtDisclaimer.Size = new Size(525, 255);
+                txtDisclaimer.BackColor = Color.FromArgb(20, 20, 20);
+                txtDisclaimer.ForeColor = Color.Gainsboro;
+                txtDisclaimer.Font = new Font("Consolas", 9.5f);
+                txtDisclaimer.Text = 
+                    "Copyright (c) 2026 Alice Kelly\r\n\r\n" +
+                    "Permission is hereby granted, free of charge, to any person obtaining a copy " +
+                    "of this software and associated documentation files (the \"Software\"), to deal " +
+                    "in the Software without restriction, including without limitation the rights " +
+                    "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell " +
+                    "copies of the Software, and to permit persons to whom the Software is " +
+                    "furnished to do so, subject to the following conditions:\r\n\r\n" +
+                    "The above copyright notice and this permission notice shall be included in all " +
+                    "copies or substantial portions of the Software.\r\n\r\n" +
+                    "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR " +
+                    "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, " +
+                    "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE " +
+                    "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER " +
+                    "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, " +
+                    "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE " +
+                    "SOFTWARE.";
+
+                Button btnAgree = new Button();
+                btnAgree.Text = "I Agree";
+                btnAgree.DialogResult = DialogResult.OK;
+                btnAgree.Location = new Point(315, 315);
+                btnAgree.Size = new Size(110, 36);
+                btnAgree.FlatStyle = FlatStyle.Flat;
+                btnAgree.BackColor = Color.FromArgb(0, 122, 204);
+                btnAgree.ForeColor = Color.White;
+                btnAgree.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+
+                Button btnExit = new Button();
+                btnExit.Text = "Exit";
+                btnExit.DialogResult = DialogResult.Cancel;
+                btnExit.Location = new Point(435, 315);
+                btnExit.Size = new Size(110, 36);
+                btnExit.FlatStyle = FlatStyle.Flat;
+                btnExit.BackColor = Color.FromArgb(60, 60, 60);
+                btnExit.ForeColor = Color.White;
+                btnExit.Font = new Font("Segoe UI", 10);
+
+                form.Controls.Add(lblHeader);
+                form.Controls.Add(txtDisclaimer);
+                form.Controls.Add(btnAgree);
+                form.Controls.Add(btnExit);
+
+                form.AcceptButton = btnAgree;
+                form.CancelButton = btnExit;
+
+                return form.ShowDialog() == DialogResult.OK;
+            }
+        }
+
+        [STAThread]
+        public static void Main()
+        {
+            bool isElevated = false;
+            using (WindowsIdentity id = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(id);
+                isElevated = principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+
+            if (!isElevated)
+            {
+                ProcessStartInfo procInfo = new ProcessStartInfo();
+                procInfo.UseShellExecute = true;
+                procInfo.WorkingDirectory = Environment.CurrentDirectory;
+                procInfo.FileName = Application.ExecutablePath;
+                procInfo.Verb = "runas";
+
+                try
+                {
+                    Process elevatedProcess = Process.Start(procInfo);
+                    Environment.Exit(0);
+                    return;
+                }
+                catch (Exception)
+                {
+                    MessageBox.Show("Administrator privileges are required to use this tool.",
+                                    "Permission Required",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Stop);
+                    Environment.Exit(1);
+                    return;
+                }
+            }
+
+            Application.EnableVisualStyles();
+
+            // Show MIT disclaimer popup; exit cleanly if not agreed
+            if (!ShowDisclaimerDialog())
+            {
+                return;
+            }
+
+            Application.Run(new MainForm());
+        }
+    }
+}
