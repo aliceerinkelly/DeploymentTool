@@ -13,9 +13,8 @@ A lightweight, standalone C# utility designed to streamline Windows image servic
 * **Privileges:** Administrator Rights (The application will prompt for auto-elevation)
 
 ## 🚀 Getting Started
-1. **Run Pre-Compiled Tool:** Download and extract [DeploymentTool.rar](./DeploymentTool.rar) to access the executable immediately.
-2. **Review the Guide:** Check out the step-by-step [Instructions](./instructions) file for an optimal configuration workflow.
-3. **Inspect the Code:** The complete, frozen v1.0 source layout is available directly inside [ToolGui.cs](./ToolGui.cs).
+!. **Review the Guide:** Check out the step-by-step [Instructions](./instructions) file for an optimal configuration workflow.
+2. **Inspect the Code:** The complete, frozen v1.0 source layout is available directly inside [ToolGui.cs](./ToolGui.cs).
 
 ---
 *© 2026 Alice Kelly. Distributed under the standard MIT License.*
