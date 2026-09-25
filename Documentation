@@ -1,36 +1,17 @@
-# Windows Deployment & Driver Management Tool (v1.0)
+# Windows Deployment Suite v2.3
 
-A professional, standalone Windows Forms application designed to automate DISM servicing, driver management, image compression, and unattended installation setups. 
+[![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6.svg)](https://microsoft.com/windows)
+[![Architecture](https://img.shields.io/badge/Architecture-x64-blue.svg)]()
+[![Single-File](https://img.shields.io/badge/Binary-Portable%20Standalone-00FF88.svg)]()
 
-## 💻 Technical Overview (v1.0)
-* **Language/Framework:** C# / .NET Framework (Windows Forms)
-* **Privileges Required:** Administrator (Built-in auto-elevation request)
-* **Licensing:** Standard MIT License (Integrated startup verification dialog)
-* **Output Log:** Embedded high-contrast console terminal tracking real-time command execution outputs.
+> A lightweight, portable, 100% free and open-source alternative to commercial deployment suites. No recurring subscriptions, no machine-locked licenses, no cloud dependencies, and zero telemetry.
 
 ---
 
-## 🛠️ Feature & Interface Guide
+## ⚡ Quick Compile (Single-File Standalone Binary)
 
-The application interface is organized into logical task segments matching your system administration workflow:
+To bundle the entire runtime, core libraries, and Win32 interop into a single self-contained `.exe` that runs on any PC without requiring .NET installed:
 
-### 1. Driver Controls
-* **Backup Drivers:** Exports all active third-party system drivers directly to `\ExportedDrivers` using the DISM online imaging engine.
-* **Restore (Default):** Re-injects and installs system drivers directly out of your default backup directory.
-* **Restore (Browse...):** Spawns a directory browser allowing you to manually target and deploy third-party drivers from any custom folder containing `.inf` files.
-
-### 2. Image Servicing & Slipstreaming
-* **Scan & Slipstream Image:** Automatically searches your current working directory for an `install.wim` or `install.esd` image file to begin an automated driver payload injection.
-* **Browse Image & Slipstream:** Opens a file dialog allowing you to explicitly pick any specific target WIM or ESD image from external storage devices.
-
-### 3. WIM Inspection & Clean-up
-* **List WIM Editions / Indexes:** Queries and extracts information about the exact Windows editions, indices, and build architectures contained within your target image file.
-* **Delete Unwanted WIM Index:** Displays your active indices and lets you permanently strip unwanted Windows editions away from the WIM structure to minimize final footprint sizes.
-
-### 4. Compression Suite
-* **Compress Folder (Zip/WinRAR/WinZip):** Detects your system environment configurations to securely package backup folders using standard Windows compression, localized WinRAR (`.rar`), or WinZip (`.zip`) engines.
-* **Convert WIM to Solid ESD:** Loops through every indexed partition layout inside a heavy `.wim` image file and compresses them into a streamlined, high-density recovery image (`.esd`).
-
-### 5. Deployment & Environment Setup
-* **Generate autounattend.xml:** Instantly builds a tailored provisioning file on your Desktop. This automates Windows setup by applying essential workarounds (TPM, SecureBoot, RAM, CPU checks) and simplifying installation down to just storage and network selection.
-* **Force DISM Cleanup / Reset:** Flushes frozen mount points, unmounts stalled workspace items, and purges processing garbage folders to ensure a clean, reliable imaging workspace.
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ".\Release_v2.3"
