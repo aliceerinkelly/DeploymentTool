@@ -27,7 +27,8 @@ namespace WindowsDeploymentSuite
                         {
                             FileName = exePath,
                             UseShellExecute = true,
-                            Verb = "runas"
+                            Verb = "runas",
+                            WorkingDirectory = @"C:\Users\alice\OneDrive\Desktop\deployment tool v3.321"
                         };
                         Process.Start(startInfo);
                         return;
@@ -71,6 +72,8 @@ namespace WindowsDeploymentSuite
 
     public class MainWindow : Window
     {
+        private readonly string _configFilePath = ResolveProjectConfigPath();
+
         private TextBox _activityLogBox;
         private Border _rootBorder;
         private System.Windows.Shapes.Path _neonWavePath;
@@ -110,8 +113,8 @@ namespace WindowsDeploymentSuite
             MinHeight = 560;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
-            // Start in Slate Amber Neon
-            ApplyColorTheme("#FF6D00", "#1C1917", "#26221E", "#302B25", "#FF7A00", LayoutMode.NeonWave);
+            // Load saved theme from theme.conf or fallback to default
+            LoadSavedThemeOrDefault();
 
             BuildFullInterface();
 
@@ -124,10 +127,85 @@ namespace WindowsDeploymentSuite
 
             Log("Ready. Running as Administrator.");
             Log("Windows Deployment Suite v3.321 loaded (Tri-Layout Architecture: Neon Wave, Glass Cyber, Win11 Fluent).");
+            Log($"Config path targeted: {_configFilePath}");
         }
 
-        public void ApplyColorTheme(string accentHex, string bgHex, string cardHex, string tileHex, string glowHex, LayoutMode layout)
+        #region Theme Persistence Engine (theme.conf)
+
+        private static string ResolveProjectConfigPath()
         {
+            // 1. Walk up from bin/Debug or bin/Release if launched via 'dotnet run'
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(System.IO.Path.DirectorySeparatorChar);
+            if (baseDir.IndexOf(@"\bin\", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                var dirInfo = new DirectoryInfo(baseDir);
+                while (dirInfo != null && !dirInfo.Name.Equals("bin", StringComparison.OrdinalIgnoreCase))
+                {
+                    dirInfo = dirInfo.Parent;
+                }
+                if (dirInfo?.Parent != null)
+                {
+                    return System.IO.Path.Combine(dirInfo.Parent.FullName, "theme.conf");
+                }
+            }
+
+            // 2. Exact workspace path check
+            string specificPath = @"C:\Users\alice\OneDrive\Desktop\deployment tool v3.321";
+            if (Directory.Exists(specificPath))
+            {
+                return System.IO.Path.Combine(specificPath, "theme.conf");
+            }
+
+            // 3. Fallback to executing directory
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "theme.conf");
+        }
+
+        private void SaveThemeConfig(string accentHex, string bgHex, string cardHex, string tileHex, string glowHex, LayoutMode layout)
+        {
+            try
+            {
+                string configData = $"{accentHex}|{bgHex}|{cardHex}|{tileHex}|{glowHex}|{layout}";
+                File.WriteAllText(_configFilePath, configData);
+                Log($"[Config] Theme saved to: {_configFilePath}");
+            }
+            catch (Exception ex)
+            {
+                Log($"[Error] Failed to write theme.conf: {ex.Message}");
+            }
+        }
+
+        private void LoadSavedThemeOrDefault()
+        {
+            try
+            {
+                if (File.Exists(_configFilePath))
+                {
+                    var raw = File.ReadAllText(_configFilePath).Trim();
+                    var parts = raw.Split('|');
+
+                    if (parts.Length == 6 && Enum.TryParse<LayoutMode>(parts[5], out var savedLayout))
+                    {
+                        ApplyColorTheme(parts[0], parts[1], parts[2], parts[3], parts[4], savedLayout, saveToDisk: false);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"[Warning] Failed reading theme.conf: {ex.Message}");
+            }
+
+            // Default Slate Amber Neon
+            ApplyColorTheme("#FF6D00", "#1C1917", "#26221E", "#302B25", "#FF7A00", LayoutMode.NeonWave, saveToDisk: false);
+        }
+
+        public void ApplyColorTheme(string accentHex, string bgHex, string cardHex, string tileHex, string glowHex, LayoutMode layout, bool saveToDisk = true)
+        {
+            if (saveToDisk)
+            {
+                SaveThemeConfig(accentHex, bgHex, cardHex, tileHex, glowHex, layout);
+            }
+
             var accent = (Color)ColorConverter.ConvertFromString(accentHex);
             var winBg = (Color)ColorConverter.ConvertFromString(bgHex);
             var cardBg = (Color)ColorConverter.ConvertFromString(cardHex);
@@ -199,7 +277,6 @@ namespace WindowsDeploymentSuite
             if (_neonWavePath != null)
                 _neonWavePath.SetResourceReference(System.Windows.Shapes.Path.StrokeProperty, "BrushCardBorder");
 
-            // Rebuild all views dynamically so buttons inside every tab adopt the active style
             _viewImageServicing = CreateImageServicingView();
             _viewPackageRemoval = CreatePackageRemovalView();
             _viewAgcCompression = CreateAgcCompressionView();
@@ -226,6 +303,8 @@ namespace WindowsDeploymentSuite
             b.Freeze();
             Resources[key] = b;
         }
+
+        #endregion
 
         private void BuildFullInterface()
         {
@@ -373,7 +452,6 @@ namespace WindowsDeploymentSuite
                 {
                     if (_currentLayout == LayoutMode.Windows11)
                     {
-                        // 1. Windows 11 Fluent Segoe Navigation Pill Styling
                         b.CornerRadius = new CornerRadius(6);
 
                         if (i == _selectedTabIndex)
@@ -394,7 +472,6 @@ namespace WindowsDeploymentSuite
                     }
                     else if (_currentLayout == LayoutMode.Glass)
                     {
-                        // 2. Glossy Specular Glass Capsule Deck
                         b.CornerRadius = new CornerRadius(16);
 
                         if (i == _selectedTabIndex)
@@ -425,7 +502,6 @@ namespace WindowsDeploymentSuite
                     }
                     else
                     {
-                        // 3. Neon Organic Wave Pill Styling
                         b.CornerRadius = new CornerRadius(16);
 
                         if (i == _selectedTabIndex)
@@ -482,7 +558,6 @@ namespace WindowsDeploymentSuite
             {
                 if (_currentLayout == LayoutMode.Glass)
                 {
-                    // Layout 3: Glass Floating Capsule with Thick Specular Under-Pod
                     _neonWavePath.StrokeThickness = 3.2;
                     double podMargin = 12.0;
                     double podY = baselineY + 2.0;
@@ -492,14 +567,12 @@ namespace WindowsDeploymentSuite
                 }
                 else if (_currentLayout == LayoutMode.Windows11)
                 {
-                    // Layout 2: Windows 11 Mode - Clean horizontal divider across the window
                     _neonWavePath.StrokeThickness = 1.0;
                     ctx.BeginFigure(new Point(0, baselineY + 2), false, false);
                     ctx.LineTo(new Point(width, baselineY + 2), true, false);
                 }
                 else
                 {
-                    // Layout 1: Neon Organic Mode - Continuous S-Curve Bézier wave
                     _neonWavePath.StrokeThickness = 2.0;
                     double flare = 18.0;
 
@@ -568,7 +641,7 @@ namespace WindowsDeploymentSuite
 
         #endregion
 
-        #region Views (With Comprehensive Glass Capsule Pods Across All Tabs)
+        #region Views
 
         private UIElement CreateImageServicingView()
         {
@@ -953,6 +1026,8 @@ namespace WindowsDeploymentSuite
 
         private FrameworkElement CreateThemeSquareCard(string name, string accent, string bg, string card, string tile, string glow, LayoutMode layout)
         {
+            var accentColor = (Color)ColorConverter.ConvertFromString(accent);
+
             var btn = new Button
             {
                 Width = 145,
@@ -963,10 +1038,34 @@ namespace WindowsDeploymentSuite
 
             var template = new ControlTemplate(typeof(Button));
             var border = new FrameworkElementFactory(typeof(Border), "CardBorder");
-            border.SetValue(Border.BorderThicknessProperty, new Thickness(1.1));
-            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
-            border.SetResourceReference(Border.BackgroundProperty, "BrushTileBg");
-            border.SetResourceReference(Border.BorderBrushProperty, "BrushCardBorder");
+
+            if (layout == LayoutMode.Glass)
+            {
+                // Specular glass capsule styling with gradient highlight
+                var glassBrush = new LinearGradientBrush
+                {
+                    StartPoint = new Point(0.5, 0),
+                    EndPoint = new Point(0.5, 1)
+                };
+                glassBrush.GradientStops.Add(new GradientStop(Color.FromArgb(85, 255, 255, 255), 0.0));
+                glassBrush.GradientStops.Add(new GradientStop(Color.FromArgb(22, 255, 255, 255), 0.48));
+                glassBrush.GradientStops.Add(new GradientStop(Color.FromArgb(15, 0, 0, 0), 0.50));
+                glassBrush.GradientStops.Add(new GradientStop(Color.FromArgb(65, accentColor.R, accentColor.G, accentColor.B), 1.0));
+                glassBrush.Freeze();
+
+                border.SetValue(Border.BorderThicknessProperty, new Thickness(1.4));
+                border.SetValue(Border.CornerRadiusProperty, new CornerRadius(16));
+                border.SetValue(Border.BackgroundProperty, glassBrush);
+                border.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromArgb(160, accentColor.R, accentColor.G, accentColor.B)));
+            }
+            else
+            {
+                // Standard squared tiles for Neon & Windows 11
+                border.SetValue(Border.BorderThicknessProperty, new Thickness(1.1));
+                border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+                border.SetResourceReference(Border.BackgroundProperty, "BrushTileBg");
+                border.SetResourceReference(Border.BorderBrushProperty, "BrushCardBorder");
+            }
 
             var sp = new FrameworkElementFactory(typeof(StackPanel));
             sp.SetValue(StackPanel.VerticalAlignmentProperty, VerticalAlignment.Center);
@@ -976,7 +1075,7 @@ namespace WindowsDeploymentSuite
             dot.SetValue(Border.WidthProperty, 14.0);
             dot.SetValue(Border.HeightProperty, 14.0);
             dot.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
-            dot.SetValue(Border.BackgroundProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(accent)));
+            dot.SetValue(Border.BackgroundProperty, new SolidColorBrush(accentColor));
             dot.SetValue(Border.MarginProperty, new Thickness(0, 0, 0, 4));
             dot.SetValue(Border.HorizontalAlignmentProperty, HorizontalAlignment.Center);
 
@@ -985,7 +1084,15 @@ namespace WindowsDeploymentSuite
             label.SetValue(TextBlock.FontSizeProperty, 11.0);
             label.SetValue(TextBlock.FontWeightProperty, FontWeights.Medium);
             label.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-            label.SetResourceReference(TextBlock.ForegroundProperty, "BrushTileText");
+
+            if (layout == LayoutMode.Glass)
+            {
+                label.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(250, 255, 252)));
+            }
+            else
+            {
+                label.SetResourceReference(TextBlock.ForegroundProperty, "BrushTileText");
+            }
 
             sp.AppendChild(dot);
             sp.AppendChild(label);
@@ -995,8 +1102,8 @@ namespace WindowsDeploymentSuite
 
             btn.Click += (s, e) =>
             {
-                ApplyColorTheme(accent, bg, card, tile, glow, layout);
-                Log($"Applied {name}. Layout: {layout}");
+                ApplyColorTheme(accent, bg, card, tile, glow, layout, saveToDisk: true);
+                Log($"Applied {name}. Layout: {layout} (Saved to theme.conf)");
             };
 
             return btn;
@@ -1004,7 +1111,7 @@ namespace WindowsDeploymentSuite
 
         #endregion
 
-        #region Component Builders (Adaptive Glass / Tile Engine)
+        #region Component Builders
 
         private Border CreateGlassPanel(string headerTitle)
         {
@@ -1050,7 +1157,6 @@ namespace WindowsDeploymentSuite
 
             if (_currentLayout == LayoutMode.Glass)
             {
-                // In Glass mode: Tiles adopt the rounded capsule specular reflection gloss
                 var glossBrush = new LinearGradientBrush
                 {
                     StartPoint = new Point(0.5, 0),
@@ -1140,11 +1246,15 @@ namespace WindowsDeploymentSuite
 
         private void RunDriverRestoreBrowse()
         {
-            var fbd = new System.Windows.Forms.FolderBrowserDialog { Description = "Select Folder Containing INF Drivers" };
-            if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            var ofd = new Microsoft.Win32.OpenFolderDialog
             {
-                Log($"Restoring drivers from: {fbd.SelectedPath}");
-                RunProcess("pnputil.exe", $"/add-driver \"{fbd.SelectedPath}\\*.inf\" /subdirs /install");
+                Title = "Select Folder Containing INF Drivers"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                Log($"Restoring drivers from: {ofd.FolderName}");
+                RunProcess("pnputil.exe", $"/add-driver \"{ofd.FolderName}\\*.inf\" /subdirs /install");
             }
         }
 
@@ -1305,11 +1415,15 @@ namespace WindowsDeploymentSuite
 
         private void AddFolderToQueue()
         {
-            var fbd = new System.Windows.Forms.FolderBrowserDialog { Description = "Select Folder to Add to Queue" };
-            if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            var ofd = new Microsoft.Win32.OpenFolderDialog
             {
-                _agcQueueBox.Items.Add(fbd.SelectedPath);
-                Log($"Added directory to queue: {fbd.SelectedPath}");
+                Title = "Select Folder to Add to Queue"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                _agcQueueBox.Items.Add(ofd.FolderName);
+                Log($"Added directory to queue: {ofd.FolderName}");
             }
         }
 
