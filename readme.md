@@ -1,20 +1,17 @@
-# Windows Deployment & Driver Management Tool
+# Windows Deployment Suite v2.3
 
-A lightweight, standalone C# utility designed to streamline Windows image servicing (DISM) and local system driver deployment. 
+[![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6.svg)](https://microsoft.com/windows)
+[![Architecture](https://img.shields.io/badge/Architecture-x64-blue.svg)]()
+[![Single-File](https://img.shields.io/badge/Binary-Portable%20Standalone-00FF88.svg)]()
 
-## ✨ Key Features
-* **Driver Management:** One-click backup and restoration of working third-party system drivers.
-* **WIM/ESD Servicing:** Strip unwanted Windows editions and slipstream drivers into specific image indices.
-* **Solid Compression:** Convert heavy `.wim` files into compact, web-ready `.esd` archives.
-* **Unattended Setup:** Generate automated deployment configurations to bypass modern Windows 11 hardware checks.
-
-## 📋 Requirements
-* **OS:** Windows 10 or Windows 11
-* **Privileges:** Administrator Rights (The application will prompt for auto-elevation)
-
-## 🚀 Getting Started
-!. **Review the Guide:** Check out the step-by-step [Instructions](./instructions) file for an optimal configuration workflow.
-2. **Inspect the Code:** The complete, frozen v1.0 source layout is available directly inside [ToolGui.cs](./ToolGui.cs).
+> A lightweight, portable, 100% free and open-source alternative to commercial deployment suites. No recurring subscriptions, no machine-locked licenses, no cloud dependencies, and zero telemetry.
 
 ---
-*© 2026 Alice Kelly. Distributed under the standard MIT License.*
+
+## ⚡ Quick Compile (Single-File Standalone Binary)
+
+To bundle the entire runtime, libraries, and Win32 interop into a single self-contained `.exe` that runs on any machine without installing .NET:
+
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ".\Release_v2.3"
