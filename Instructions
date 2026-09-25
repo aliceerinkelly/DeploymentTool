@@ -1,45 +1,122 @@
-# Windows Deployment & Driver Management Tool
+================================================================================
+          WINDOWS DEPLOYMENT SUITE v2.3 - QUICK START INSTRUCTIONS
+                         Copyright (c) 2026 Alice Kelly
+================================================================================
 
-A streamlined, user-friendly utility designed to backup working system drivers, strip unwanted Windows editions from a `.wim` file, slipstream your drivers, and output a lightweight, custom installation image.
+[OVERVIEW]
+Windows Deployment Suite v2.3 is an all-in-one, standalone administrative 
+utility designed for Windows image servicing, package management, and native 
+solid archiving. 
 
-## 🚀 Quick Start Guide
-
-Follow these steps to create your own customized Windows 11 installation media:
-
-1. **Download the Windows ISO**  
-   Grab a fresh Windows 11 `.iso` directly from [Microsoft's Official Software Download Page](https://microsoft.com).
-
-2. **Extract the Image**  
-   Locate and extract the `install.wim` file from the `/sources/` directory inside the downloaded ISO, and save it to your desktop.
-
-3. **Set Up Your Workspace**  
-   Create a new folder anywhere on your computer (desktop is recommended) to act as your working directory.
-
-4. **Prepare the Files**  
-   Paste both `DeploymentTool.exe` and your extracted `install.wim` into this new folder.
-
-5. **Launch the Tool**  
-   Right-click `DeploymentTool.exe` and select **Run as Administrator**. Agree to the end-user terms to proceed.
-
-6. **Backup Existing Drivers**  
-   Click the **Backup Drivers** button. A new folder populated with your active, working system drivers will instantly appear in your workspace. 
-   *(Note: If you only intended to back up your current drivers, you can safely close the tool and stop here!)*
-
-7. **Scan & Open the Image**  
-   Click **Scan and Slipstream Image**. The utility will automatically detect your `install.wim` file and load its contents.
-
-8. **Manage Windows Editions**  
-   Review the detected Windows editions displayed in the green area at the bottom of the interface. 
-   * Use the interface to **delete the editions you do not want** to save disk space.
-   * *Important:* You will need to inject drivers into each individual edition that you decide to keep.
-
-9. **Slipstream Your Drivers**  
-   Select your remaining Windows editions one at a time to slipstream your backed-up drivers directly into them.
-
-10. **Finalize and Package Your Media**  
-    Once processing is complete, you have two options to rebuild your installer:
-    * **Option A (Standard WIM):** Place your modified `install.wim` back into the ISO's `/sources/` directory, then use a tool like **Rufus** to burn the ISO to a bootable USB thumb drive.
-    * **Option B (Compressed ESD):** Use the tool to compress the heavy `.wim` into a significantly smaller `install.esd` file. Delete the original `install.wim` from the ISO's `/sources/` folder, drop your new `install.esd` in its place, and burn it to a DVD or flash drive using Rufus.
+It requires NO INSTALLATION. Run the executable as Administrator.
 
 
-Ta-da! You are completely finished. Enjoy your custom, streamlined Windows installation!
+--------------------------------------------------------------------------------
+1. FIRST LAUNCH & PERMISSIONS
+--------------------------------------------------------------------------------
+1. Place the executable in a working directory (e.g., Desktop or external USB drive).
+2. Right-click the application and select "Run as administrator".
+   - If launched normally, the app will automatically request UAC elevation.
+3. The dark theme and neon green accent will load by default. 
+   - Use the right-hand COLOR swatches to change the neon highlight.
+   - Use the DARK/LIGHT toggle switch to swap between dark and light modes.
+   - Your preferences are saved automatically in theme.cfg and mode.cfg.
+
+
+--------------------------------------------------------------------------------
+2. TAB 1: WINDOWS DEPLOYMENT HUB
+--------------------------------------------------------------------------------
+This tab handles driver integration, image servicing, unattended automation, 
+and workspace resets.
+
+A. DRIVER BACKUP & RESTORATION:
+   - "Backup Drivers":
+     Exports all 3rd-party installed hardware drivers on the active PC into
+     an "ExportedDrivers" folder located in your current app directory.
+   - "Restore (Default)":
+     Installs all drivers found inside the local "ExportedDrivers" folder.
+   - "Restore (Browse...)":
+     Opens a folder browser to select any custom driver folder on your PC or
+     flash drive and installs every .inf file found inside it.
+
+B. IMAGE SERVICING & SLIPSTREAMING:
+   - "Scan & Slipstream Image":
+     Automatically looks for an "install.wim" or "install.esd" in your working
+     folder. If found, it lists all OS editions, prompts you for an Index number,
+     mounts the image, injects all drivers from "ExportedDrivers", and unmounts
+     with changes saved.
+   - "Browse Image & Slipstream":
+     Allows you to manually pick any .wim or .esd file from any drive and runs
+     the same automated injection pipeline.
+
+C. IMAGE INSPECTION & TRIMMING:
+   - "List WIM Editions / Indexes":
+     Prompts for an image and prints every Edition (Home, Pro, etc.) along with
+     its Index number into the bottom console.
+   - "Delete Unwanted WIM Index":
+     Prompts you to enter an Index number to permanently delete from a WIM,
+     shrinking the file size and leaving only the edition you want.
+
+D. COMPRESSION & UNATTENDED SETUP:
+   - "Compress Folder (Zip/WinRAR/WinZip)":
+     Select any folder to compress using native Windows zip, WinRAR, or WinZip.
+   - "Convert WIM to Solid ESD":
+     Converts a standard install.wim into a heavily compressed install.esd
+     recovery image (/Compress:recovery) for smaller ISO/USB sizes.
+   - "Generate autounattend.xml":
+     Instantly drops a pre-configured unattended XML answer file on your Desktop.
+     This file automatically creates a local admin account ("User") and bypasses
+     Windows 11 hardware restrictions (TPM 2.0, Secure Boot, RAM, CPU, Storage).
+   - "Force DISM Cleanup / Reset":
+     Use this if a mount operation gets interrupted. It unmounts stuck images,
+     cleans stale mountpoints, and flushes temporary staging folders.
+
+
+--------------------------------------------------------------------------------
+3. TAB 2: APPXPULSE (BLOATWARE & PACKAGE MANAGER)
+--------------------------------------------------------------------------------
+This tab audits and strips modern AppX/MSIX bloatware from your system.
+
+1. Click "Scan Installed AppX Packages" to list user-level store apps, OR click
+   "Scan Provisioned OS Packages (Image)" to list apps embedded in the system image.
+2. Review the list of package names, versions, and architectures.
+3. Click on any package you want to delete to highlight it.
+4. Click "Remove Selected Package" and confirm the prompt.
+5. The package will be stripped cleanly without affecting core dependencies.
+
+
+--------------------------------------------------------------------------------
+4. TAB 3: AGC SOLID ENGINE (HIGH-RATIO ARCHIVER)
+--------------------------------------------------------------------------------
+This tab provides native high-compression archiving powered by Windows cabinet.dll.
+
+A. CREATING AN ARCHIVE (.AGC):
+   1. Drag and drop files or folders directly into the queue box, or use the 
+      "Add Files" / "Add Folder" buttons.
+   2. Choose your "Compression Method":
+      - Store: Packages files without compression.
+      - Fast (MSZIP): Fast compression speed.
+      - Ultra (LZMS Solid): Maximum compression dictionary ratio.
+   3. Check "Solid archive" for unified solid-block compression.
+   4. Check "Test archive" to run an automated integrity verification check.
+   5. (Optional) Check "Priority: Low (Bg)" if you are working on large multi-GB
+      folders and want your PC to stay fast and responsive in the background.
+   6. Click "COMPRESS (.AGC)" and choose where to save the archive.
+
+B. EXTRACTING AN ARCHIVE (.AGC):
+   1. Click "Output Dir..." to set where extracted files should go (defaults to Desktop).
+   2. Click "EXTRACT (.AGC)".
+   3. Select your .agc file. The files and directory structures will unpack
+      automatically with real-time progress shown on the bars.
+
+
+--------------------------------------------------------------------------------
+5. TROUBLESHOOTING & TIPS
+--------------------------------------------------------------------------------
+- "Access Denied" or DISM errors: Ensure the program was launched as Administrator.
+- Locked Mount Directory: If "WimMount" cannot be deleted manually, go to Tab 1 
+  and click "Force DISM Cleanup / Reset".
+- Conversion Disk Space: Converting an .esd to .wim requires free temporary disk 
+  space equal to the uncompressed size of the image.
+
+================================================================================
