@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Principal;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -28,7 +29,7 @@ namespace WindowsDeploymentSuite
                             FileName = exePath,
                             UseShellExecute = true,
                             Verb = "runas",
-                            WorkingDirectory = @"C:\Users\alice\OneDrive\Desktop\deployment tool v3.321"
+                            WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\')
                         };
                         Process.Start(startInfo);
                         return;
@@ -149,14 +150,7 @@ namespace WindowsDeploymentSuite
                 }
             }
 
-            // 2. Exact workspace path check
-            string specificPath = @"C:\Users\alice\OneDrive\Desktop\deployment tool v3.321";
-            if (Directory.Exists(specificPath))
-            {
-                return System.IO.Path.Combine(specificPath, "theme.conf");
-            }
-
-            // 3. Fallback to executing directory
+            // 2. Portable fallback to folder containing the executing application
             return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "theme.conf");
         }
 
@@ -313,8 +307,8 @@ namespace WindowsDeploymentSuite
 
             var rootGrid = new Grid();
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 0: Header
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 1: Dynamic Nav Deck / Wave Rail
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // 2: Active Tab Content
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 1: Nav Deck / Wave Rail
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // 2: Tab Content
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(165) }); // 3: Terminal Activity Log
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 4: Footer
 
@@ -341,7 +335,7 @@ namespace WindowsDeploymentSuite
             Grid.SetRow(header, 0);
             rootGrid.Children.Add(header);
 
-            // 2. High-Amplitude Wave Deck / Fluent Nav Rail Container
+            // 2. High-Amplitude Wave Deck Container
             var waveContainer = new Grid { Height = 48, Margin = new Thickness(0, 0, 0, 8) };
 
             _neonWavePath = new System.Windows.Shapes.Path
@@ -924,7 +918,7 @@ namespace WindowsDeploymentSuite
             var scroll = new ScrollViewer { Margin = new Thickness(0, 2, 0, 0) };
             var stack = new StackPanel { Margin = new Thickness(4) };
 
-            // 1. Neon Wireframe Palettes (Dark Studio with Bézier Wave Deck)
+            // 1. Neon Wireframe Palettes
             var themeCard = CreateGlassPanel("Neon Themes (Dark Slate with Sweeping Wave Deck)");
             var themeStack = new StackPanel { Margin = new Thickness(14) };
 
@@ -949,7 +943,7 @@ namespace WindowsDeploymentSuite
             Grid.SetRow(themeStack, 1);
             stack.Children.Add(themeCard);
 
-            // 2. Glass Cyber-Pill Palettes (Classic Retro Setup - Specular Gloss & Under-Pod Glow)
+            // 2. Glass Cyber-Pill Palettes
             var glassCard = CreateGlassPanel("Glass Themes (Specular Gloss Capsule Deck & Under-Pods)");
             var glassStack = new StackPanel { Margin = new Thickness(14) };
 
@@ -975,7 +969,7 @@ namespace WindowsDeploymentSuite
             glassCard.Margin = new Thickness(0, 8, 0, 0);
             stack.Children.Add(glassCard);
 
-            // 3. Windows 11 Fluent App Layouts (Mica & Soft Off-White)
+            // 3. Windows 11 Fluent App Layouts
             var win11Card = CreateGlassPanel("Windows 11 Fluent App Layouts (Mica & Solid Segoe Blocks)");
             var win11Stack = new StackPanel { Margin = new Thickness(14) };
 
@@ -1041,7 +1035,6 @@ namespace WindowsDeploymentSuite
 
             if (layout == LayoutMode.Glass)
             {
-                // Specular glass capsule styling with gradient highlight
                 var glassBrush = new LinearGradientBrush
                 {
                     StartPoint = new Point(0.5, 0),
@@ -1060,7 +1053,6 @@ namespace WindowsDeploymentSuite
             }
             else
             {
-                // Standard squared tiles for Neon & Windows 11
                 border.SetValue(Border.BorderThicknessProperty, new Thickness(1.1));
                 border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
                 border.SetResourceReference(Border.BackgroundProperty, "BrushTileBg");
@@ -1230,51 +1222,65 @@ namespace WindowsDeploymentSuite
 
         private void RunDriverBackup()
         {
-            var dest = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DriverBackup");
-            Directory.CreateDirectory(dest);
-            Log($"Backing up active driver store to {dest}...");
-            RunProcess("dism.exe", $"/online /export-driver /destination:\"{dest}\"");
+            Task.Run(() =>
+            {
+                var dest = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DriverBackup");
+                Directory.CreateDirectory(dest);
+                Log($"Backing up active driver store to {dest}...");
+                RunProcess("dism.exe", $"/online /export-driver /destination:\"{dest}\"");
+            });
         }
 
         private void RunDriverRestore()
         {
-            var dest = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DriverBackup");
-            if (!Directory.Exists(dest)) { Log("No default DriverBackup folder found."); return; }
-            Log($"Restoring drivers from {dest}...");
-            RunProcess("pnputil.exe", $"/add-driver \"{dest}\\*.inf\" /subdirs /install");
+            Task.Run(() =>
+            {
+                var dest = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DriverBackup");
+                if (!Directory.Exists(dest)) { Log("No default DriverBackup folder found."); return; }
+                Log($"Restoring drivers from {dest}...");
+                RunProcess("pnputil.exe", $"/add-driver \"{dest}\\*.inf\" /subdirs /install");
+            });
         }
 
         private void RunDriverRestoreBrowse()
         {
-            var ofd = new Microsoft.Win32.OpenFolderDialog
+            var ofd = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "Select Folder Containing INF Drivers"
+                Title = "Select Any INF File in Driver Directory",
+                Filter = "Driver INF Files (*.inf)|*.inf|All Files (*.*)|*.*"
             };
 
             if (ofd.ShowDialog() == true)
             {
-                Log($"Restoring drivers from: {ofd.FolderName}");
-                RunProcess("pnputil.exe", $"/add-driver \"{ofd.FolderName}\\*.inf\" /subdirs /install");
+                string folder = System.IO.Path.GetDirectoryName(ofd.FileName);
+                Task.Run(() =>
+                {
+                    Log($"Restoring drivers from: {folder}");
+                    RunProcess("pnputil.exe", $"/add-driver \"{folder}\\*.inf\" /subdirs /install");
+                });
             }
         }
 
         private void RunScanAndSlipstream()
         {
-            var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
-            if (wims.Length == 0) { Log("No .wim file found in workspace."); return; }
-            var mountDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mount");
-            var driverDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DriverBackup");
-            Directory.CreateDirectory(mountDir);
-
-            Log($"Mounting {System.IO.Path.GetFileName(wims[0])}...");
-            RunProcess("dism.exe", $"/Mount-Wim /WimFile:\"{wims[0]}\" /index:1 /MountDir:\"{mountDir}\"");
-
-            if (Directory.Exists(driverDir))
+            Task.Run(() =>
             {
-                Log($"Injecting drivers from {driverDir}...");
-                RunProcess("dism.exe", $"/Image:\"{mountDir}\" /Add-Driver /Driver:\"{driverDir}\" /Recurse");
-            }
-            RunProcess("dism.exe", $"/Unmount-Wim /MountDir:\"{mountDir}\" /Commit");
+                var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
+                if (wims.Length == 0) { Log("No .wim file found in workspace."); return; }
+                var mountDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mount");
+                var driverDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DriverBackup");
+                Directory.CreateDirectory(mountDir);
+
+                Log($"Mounting {System.IO.Path.GetFileName(wims[0])}...");
+                RunProcess("dism.exe", $"/Mount-Image /ImageFile:\"{wims[0]}\" /Index:1 /MountDir:\"{mountDir}\"");
+
+                if (Directory.Exists(driverDir))
+                {
+                    Log($"Injecting drivers from {driverDir}...");
+                    RunProcess("dism.exe", $"/Image:\"{mountDir}\" /Add-Driver /Driver:\"{driverDir}\" /Recurse");
+                }
+                RunProcess("dism.exe", $"/Unmount-Image /MountDir:\"{mountDir}\" /Commit");
+            });
         }
 
         private void RunBrowseImage()
@@ -1282,41 +1288,57 @@ namespace WindowsDeploymentSuite
             var ofd = new Microsoft.Win32.OpenFileDialog { Filter = "Windows Image (*.wim;*.esd)|*.wim;*.esd|All Files (*.*)|*.*" };
             if (ofd.ShowDialog() == true)
             {
-                Log($"Reading image info: {ofd.FileName}");
-                RunProcess("dism.exe", $"/Get-WimInfo /WimFile:\"{ofd.FileName}\"");
+                string targetPath = ofd.FileName;
+                Task.Run(() =>
+                {
+                    Log($"Reading image info: {targetPath}");
+                    RunProcess("dism.exe", $"/Get-WimInfo /WimFile:\"{targetPath}\"");
+                });
             }
         }
 
         private void RunListWimIndexes()
         {
-            var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
-            if (wims.Length == 0) { Log("No .wim file detected in workspace root."); return; }
-            RunProcess("dism.exe", $"/Get-WimInfo /WimFile:\"{wims[0]}\"");
+            Task.Run(() =>
+            {
+                var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
+                if (wims.Length == 0) { Log("No .wim file detected in workspace root."); return; }
+                RunProcess("dism.exe", $"/Get-WimInfo /WimFile:\"{wims[0]}\"");
+            });
         }
 
         private void RunDeleteWimIndex()
         {
-            var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
-            if (wims.Length == 0) { Log("No .wim file found to prune."); return; }
-            Log($"Specify index to delete on: {wims[0]}");
-            RunProcess("dism.exe", $"/Get-WimInfo /WimFile:\"{wims[0]}\"");
+            Task.Run(() =>
+            {
+                var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
+                if (wims.Length == 0) { Log("No .wim file found to prune."); return; }
+                Log($"Specify index to delete on: {wims[0]}");
+                RunProcess("dism.exe", $"/Get-WimInfo /WimFile:\"{wims[0]}\"");
+            });
         }
 
         private void RunCompressWorkspace()
         {
-            var dir = AppDomain.CurrentDomain.BaseDirectory;
-            var outZip = System.IO.Path.Combine(dir, $"SuiteArchive_{DateTime.Now:yyyyMMdd_HHmm}.zip");
-            Log($"Archiving folder to: {outZip}");
-            RunProcess("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path '{dir}\\*.*' -DestinationPath '{outZip}' -Force\"");
+            Task.Run(() =>
+            {
+                var dir = AppDomain.CurrentDomain.BaseDirectory;
+                var outZip = System.IO.Path.Combine(dir, $"SuiteArchive_{DateTime.Now:yyyyMMdd_HHmm}.zip");
+                Log($"Archiving folder to: {outZip}");
+                RunProcess("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path '{dir}\\*.*' -DestinationPath '{outZip}' -Force\"");
+            });
         }
 
         private void RunConvertToSolidEsd()
         {
-            var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
-            if (wims.Length == 0) { Log("No .wim file found for ESD compression."); return; }
-            var target = System.IO.Path.ChangeExtension(wims[0], ".esd");
-            Log($"Exporting solid LZMS recovery ESD to {target}...");
-            RunProcess("dism.exe", $"/Export-Image /SourceImageFile:\"{wims[0]}\" /SourceIndex:1 /DestinationImageFile:\"{target}\" /Compress:recovery /CheckIntegrity");
+            Task.Run(() =>
+            {
+                var wims = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.wim");
+                if (wims.Length == 0) { Log("No .wim file found for ESD compression."); return; }
+                var target = System.IO.Path.ChangeExtension(wims[0], ".esd");
+                Log($"Exporting solid LZMS recovery ESD to {target}...");
+                RunProcess("dism.exe", $"/Export-Image /SourceImageFile:\"{wims[0]}\" /SourceIndex:1 /DestinationImageFile:\"{target}\" /Compress:recovery /CheckIntegrity");
+            });
         }
 
         private void RunGenerateAutounattend()
@@ -1346,28 +1368,35 @@ namespace WindowsDeploymentSuite
 
         private void RunDismCleanup()
         {
-            Log("Cleaning up stale DISM mount points...");
-            RunProcess("dism.exe", "/Cleanup-Wim");
+            Task.Run(() =>
+            {
+                Log("Cleaning up stale DISM mount points...");
+                RunProcess("dism.exe", "/Cleanup-Mountpoints");
+                RunProcess("dism.exe", "/Cleanup-Wim");
+            });
         }
 
         private void RunScanInstalledAppX()
         {
             Log("Scanning installed user AppX packages...");
             _appxList.Clear();
-            var script = "Get-AppxPackage | Select-Object Name, Version, Architecture, PackageFullName | ConvertTo-Csv -NoTypeInformation";
-            ExecutePowerShellScript(script, line =>
+            Task.Run(() =>
             {
-                var parts = line.Split(',');
-                if (parts.Length >= 4 && !parts[0].Contains("Name"))
+                var script = "Get-AppxPackage | Select-Object Name, Version, Architecture, PackageFullName | ConvertTo-Csv -NoTypeInformation";
+                ExecutePowerShellScript(script, line =>
                 {
-                    Dispatcher.Invoke(() => _appxList.Add(new AppXItem
+                    var parts = line.Split(',');
+                    if (parts.Length >= 4 && !parts[0].Contains("Name"))
                     {
-                        PackageName = parts[0].Trim('"'),
-                        Version = parts[1].Trim('"'),
-                        Architecture = parts[2].Trim('"'),
-                        FullIdentity = parts[3].Trim('"')
-                    }));
-                }
+                        Dispatcher.BeginInvoke(new Action(() => _appxList.Add(new AppXItem
+                        {
+                            PackageName = parts[0].Trim('"'),
+                            Version = parts[1].Trim('"'),
+                            Architecture = parts[2].Trim('"'),
+                            FullIdentity = parts[3].Trim('"')
+                        })));
+                    }
+                });
             });
         }
 
@@ -1375,20 +1404,23 @@ namespace WindowsDeploymentSuite
         {
             Log("Scanning provisioned OS image AppX packages...");
             _appxList.Clear();
-            var script = "Get-AppxProvisionedPackage -Online | Select-Object DisplayName, Version, Architecture, PackageName | ConvertTo-Csv -NoTypeInformation";
-            ExecutePowerShellScript(script, line =>
+            Task.Run(() =>
             {
-                var parts = line.Split(',');
-                if (parts.Length >= 4 && !parts[0].Contains("DisplayName"))
+                var script = "Get-AppxProvisionedPackage -Online | Select-Object DisplayName, Version, Architecture, PackageName | ConvertTo-Csv -NoTypeInformation";
+                ExecutePowerShellScript(script, line =>
                 {
-                    Dispatcher.Invoke(() => _appxList.Add(new AppXItem
+                    var parts = line.Split(',');
+                    if (parts.Length >= 4 && !parts[0].Contains("DisplayName"))
                     {
-                        PackageName = parts[0].Trim('"'),
-                        Version = parts[1].Trim('"'),
-                        Architecture = parts[2].Trim('"'),
-                        FullIdentity = parts[3].Trim('"')
-                    }));
-                }
+                        Dispatcher.BeginInvoke(new Action(() => _appxList.Add(new AppXItem
+                        {
+                            PackageName = parts[0].Trim('"'),
+                            Version = parts[1].Trim('"'),
+                            Architecture = parts[2].Trim('"'),
+                            FullIdentity = parts[3].Trim('"')
+                        })));
+                    }
+                });
             });
         }
 
@@ -1396,9 +1428,13 @@ namespace WindowsDeploymentSuite
         {
             if (_appxGrid.SelectedItem is AppXItem selected)
             {
-                Log($"Removing package: {selected.PackageName}...");
-                RunProcess("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name '{selected.PackageName}' | Remove-AppxPackage; Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -eq '{selected.PackageName}' }} | Remove-AppxProvisionedPackage -Online\"");
-                _appxList.Remove(selected);
+                string pkgName = selected.PackageName;
+                Log($"Removing package: {pkgName}...");
+                Task.Run(() =>
+                {
+                    RunProcess("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name '{pkgName}' | Remove-AppxPackage; Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -eq '{pkgName}' }} | Remove-AppxProvisionedPackage -Online\"");
+                    Dispatcher.BeginInvoke(new Action(() => _appxList.Remove(selected)));
+                });
             }
             else Log("Select a package in the table to remove.");
         }
@@ -1415,15 +1451,21 @@ namespace WindowsDeploymentSuite
 
         private void AddFolderToQueue()
         {
-            var ofd = new Microsoft.Win32.OpenFolderDialog
+            var ofd = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "Select Folder to Add to Queue"
+                Title = "Select Any File in Directory to Enqueue Folder",
+                CheckFileExists = false,
+                FileName = "[Select Current Folder]"
             };
 
             if (ofd.ShowDialog() == true)
             {
-                _agcQueueBox.Items.Add(ofd.FolderName);
-                Log($"Added directory to queue: {ofd.FolderName}");
+                string dir = System.IO.Path.GetDirectoryName(ofd.FileName);
+                if (Directory.Exists(dir))
+                {
+                    _agcQueueBox.Items.Add(dir);
+                    Log($"Added directory to queue: {dir}");
+                }
             }
         }
 
@@ -1466,17 +1508,20 @@ namespace WindowsDeploymentSuite
                     CreateNoWindow = true
                 };
 
-                var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-                proc.OutputDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) onLine(e.Data); };
-                proc.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Dispatcher.Invoke(() => Log($"[ERR] {e.Data}")); };
+                using (var proc = new Process { StartInfo = psi, EnableRaisingEvents = true })
+                {
+                    proc.OutputDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) onLine(e.Data); };
+                    proc.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Dispatcher.BeginInvoke(new Action(() => Log($"[ERR] {e.Data}"))); };
 
-                proc.Start();
-                proc.BeginOutputReadLine();
-                proc.BeginErrorReadLine();
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    proc.WaitForExit();
+                }
             }
             catch (Exception ex)
             {
-                Log($"[PS Exception] {ex.Message}");
+                Dispatcher.BeginInvoke(new Action(() => Log($"[PS Exception] {ex.Message}")));
             }
         }
 
@@ -1494,28 +1539,36 @@ namespace WindowsDeploymentSuite
                     CreateNoWindow = true
                 };
 
-                var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-                proc.OutputDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Dispatcher.Invoke(() => Log(e.Data)); };
-                proc.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Dispatcher.Invoke(() => Log($"[ERR] {e.Data}")); };
+                using (var proc = new Process { StartInfo = psi, EnableRaisingEvents = true })
+                {
+                    proc.OutputDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Dispatcher.BeginInvoke(new Action(() => Log(e.Data))); };
+                    proc.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data)) Dispatcher.BeginInvoke(new Action(() => Log($"[ERR] {e.Data}"))); };
 
-                proc.Start();
-                proc.BeginOutputReadLine();
-                proc.BeginErrorReadLine();
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    proc.WaitForExit();
+                }
             }
             catch (Exception ex)
             {
-                Log($"[Exception] Failed to execute {exe}: {ex.Message}");
+                Dispatcher.BeginInvoke(new Action(() => Log($"[Exception] Failed to execute {exe}: {ex.Message}")));
             }
         }
 
         private void Log(string message)
         {
             var line = $"[{DateTime.Now:HH:mm:ss}] {message}";
-            if (_activityLogBox != null)
+            if (_activityLogBox == null) return;
+
+            if (!Dispatcher.CheckAccess())
             {
-                _activityLogBox.AppendText(line + Environment.NewLine);
-                _activityLogBox.ScrollToEnd();
+                Dispatcher.BeginInvoke(new Action(() => Log(message)));
+                return;
             }
+
+            _activityLogBox.AppendText(line + Environment.NewLine);
+            _activityLogBox.ScrollToEnd();
         }
 
         #endregion
