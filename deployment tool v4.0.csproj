@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+
+    <!-- Executable Name & Version Metadata -->
+    <AssemblyName>WindowsDeploymentSuite</AssemblyName>
+    <Version>4.0.0</Version>
+    <FileVersion>4.0.0.0</FileVersion>
+    <AssemblyVersion>4.0.0.0</AssemblyVersion>
+    
+    <!-- Self-Contained Standalone Flags -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <!-- Embeds Drivers.zip only if the file is in the folder; otherwise silently skips -->
+  <ItemGroup>
+    <EmbeddedResource Include="Drivers.zip" Condition="Exists('Drivers.zip')" />
+  </ItemGroup>
+
+</Project>
